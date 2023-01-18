@@ -12,6 +12,9 @@ all curl methods accepts
   dry_run = "whether to return the args to be ran through curl." (boolean)
   output  = "where to download something." (filepath)
 
+  sync_timeout_secs = sync timeout in seconds
+  on_stdout = Use -N arg for nonbuffered output. Pass this function to the Job and run async
+
 and returns table:
 
   exit    = "The shell process exit code." (number)
@@ -218,6 +221,10 @@ parse.request = function(opts)
     table.insert(result, { "-o", opts.output })
   end
   table.insert(result, parse.url(opts.url, opts.query))
+
+  if opts.on_stdout then
+    append('-N')
+  end
   return vim.tbl_flatten(result), opts
 end
 
@@ -254,6 +261,7 @@ request = function(specs)
   local job = J:new {
     command = "curl",
     args = args,
+    on_stdout = opts.on_stdout,
     on_exit = function(j, code)
       if code ~= 0 then
         error(
@@ -275,10 +283,14 @@ request = function(specs)
     end,
   }
 
-  if opts.callback then
+  local async = opts.callback or opts.on_stdout
+  if async then
     return job:start()
   else
-    job:sync(10000)
+    if not opts.sync_timeout_secs then
+      opts.sync_timeout_secs = 10000
+    end
+    job:sync(opts.sync_timeout_secs)
     return response
   end
 end
